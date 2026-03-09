@@ -1,10 +1,11 @@
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/I2I57UKJ8)
+
+
 # skill-reminder-injection
 
-OpenCode plugin that injects a short skill reminder into each user message.
+This OpenCode plugin injects skill reminders into user messages.
 
-It scans skill directories for `SKILL.md`, caches each skill name and description,
-embeds the current prompt with the cached skills, and appends a synthetic text
-part telling the agent to consider the top 3 relevant skills by name.
+The plugin scans directories for `SKILL.md` files to cache their names and descriptions. It then embeds the prompt with the cached skills and instructs the agent to use the most relevant ones.
 
 ## Configuration
 
