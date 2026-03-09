@@ -1,0 +1,19 @@
+{
+  "name": "skill-reminder-injection",
+  "private": true,
+  "module": "./src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "latest",
+    "@opencode-ai/plugin": "^1.2.20"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
