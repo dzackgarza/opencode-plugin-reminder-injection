@@ -1,7 +1,6 @@
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/I2I57UKJ8)
 
 
-# skill-reminder-injection
+# opencode-plugin-reminder-injection
 
 This OpenCode plugin injects skill reminders into user messages.
 
@@ -13,15 +12,15 @@ Add the plugin to your OpenCode config:
 
 ```json
 {
-  "plugin": ["file:///home/dzack/opencode-plugins/skill-reminder-injection/src/index.ts"]
+  "plugin": ["file:///path/to/opencode-plugin-reminder-injection/src/index.ts"]
 }
 ```
 
 Optional environment variables:
 
-- `SKILL_REMINDER_SKILLS_DIRS`: colon-separated list of skill roots to scan.
-- `SKILL_REMINDER_MODEL`: embedding model name.
-- `SKILL_REMINDER_TOP_K`: number of skills to inject. Default: `3`.
+- `REMINDER_INJECTION_SKILLS_DIRS`: colon-separated list of skill roots to scan.
+- `REMINDER_INJECTION_MODEL`: embedding model name.
+- `REMINDER_INJECTION_TOP_K`: number of skills to inject. Default: `3`.
 
 Default skill root:
 

@@ -1,6 +1,5 @@
 {
-  "name": "skill-reminder-injection",
-  "private": true,
+  "name": "@dzackgarza/opencode-plugin-reminder-injection",
   "module": "./src/index.ts",
   "scripts": {
     "test": "bun test",
@@ -15,5 +14,18 @@
   },
   "peerDependencies": {
     "typescript": "^5"
-  }
+  },
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dzackgarza/opencode-plugin-reminder-injection.git"
+  },
+  "keywords": [
+    "opencode",
+    "plugin"
+  ],
+  "funding": "https://ko-fi.com/I2I57UKJ8"
 }

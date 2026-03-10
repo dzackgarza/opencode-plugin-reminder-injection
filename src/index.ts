@@ -2,8 +2,8 @@ import type { Plugin } from "@opencode-ai/plugin";
 import type { Part } from "@opencode-ai/sdk";
 import { SkillCache } from "./skill-cache.ts";
 
-const TOP_K = Math.max(1, Number.parseInt(process.env.SKILL_REMINDER_TOP_K ?? "3", 10) || 3);
-const REMINDER_TAG = "skill-reminder-injection";
+const TOP_K = Math.max(1, Number.parseInt(process.env.REMINDER_INJECTION_TOP_K ?? "3", 10) || 3);
+const REMINDER_TAG = "opencode-plugin-reminder-injection";
 
 function textParts(parts: Part[]): string[] {
   return parts

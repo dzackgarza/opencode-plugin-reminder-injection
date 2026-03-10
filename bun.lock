@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "skill-reminder-injection",
+      "name": "opencode-plugin-reminder-injection",
       "dependencies": {
         "@huggingface/transformers": "latest",
         "@opencode-ai/plugin": "^1.2.20",

@@ -17,7 +17,7 @@ const TEMP_ROOT = mkdtempSync(join(tmpdir(), "skill-reminder-"));
 const SKILLS_DIR = join(TEMP_ROOT, "skills");
 const DUPLICATE_SKILLS_DIR = join(TEMP_ROOT, "skills-duplicate");
 const INVALID_SKILLS_DIR = join(TEMP_ROOT, "skills-invalid");
-const ORIGINAL_SKILLS_DIRS = process.env.SKILL_REMINDER_SKILLS_DIRS;
+const ORIGINAL_SKILLS_DIRS = process.env.REMINDER_INJECTION_SKILLS_DIRS;
 
 function writeSkill(root: string, name: string, description: string, body = `# ${name}\n`) {
   const dir = join(root, name);
@@ -69,8 +69,8 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  if (ORIGINAL_SKILLS_DIRS === undefined) delete process.env.SKILL_REMINDER_SKILLS_DIRS;
-  else process.env.SKILL_REMINDER_SKILLS_DIRS = ORIGINAL_SKILLS_DIRS;
+  if (ORIGINAL_SKILLS_DIRS === undefined) delete process.env.REMINDER_INJECTION_SKILLS_DIRS;
+  else process.env.REMINDER_INJECTION_SKILLS_DIRS = ORIGINAL_SKILLS_DIRS;
   rmSync(TEMP_ROOT, { recursive: true, force: true });
 });
 
@@ -98,7 +98,7 @@ describe("skill-cache primitives", () => {
   });
 
   it("uses the explicit environment override for skill roots", () => {
-    process.env.SKILL_REMINDER_SKILLS_DIRS = "~/custom-one:~/custom-two";
+    process.env.REMINDER_INJECTION_SKILLS_DIRS = "~/custom-one:~/custom-two";
     expect(defaultSkillsDirs()).toEqual([
       `${process.env.HOME}/custom-one`,
       `${process.env.HOME}/custom-two`,
@@ -106,7 +106,7 @@ describe("skill-cache primitives", () => {
   });
 
   it("falls back only to the standard OpenCode skills root", () => {
-    delete process.env.SKILL_REMINDER_SKILLS_DIRS;
+    delete process.env.REMINDER_INJECTION_SKILLS_DIRS;
     expect(defaultSkillsDirs()).toEqual([`${process.env.HOME}/.config/opencode/skills`]);
   });
 
@@ -238,7 +238,7 @@ describe("plugin injection", () => {
     );
 
     const reminder = parts.find(
-      (part) => part.type === "text" && part.synthetic && part.metadata?.source === "skill-reminder-injection",
+      (part) => part.type === "text" && part.synthetic && part.metadata?.source === "opencode-plugin-reminder-injection",
     );
     const text = reminder && reminder.type === "text" ? reminder.text : "";
 

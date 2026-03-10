@@ -14,7 +14,7 @@ type SkillCacheOptions = {
   model: string;
 };
 
-const DEFAULT_MODEL = process.env.SKILL_REMINDER_MODEL?.trim() || "mixedbread-ai/mxbai-embed-xsmall-v1";
+const DEFAULT_MODEL = process.env.REMINDER_INJECTION_MODEL?.trim() || "mixedbread-ai/mxbai-embed-xsmall-v1";
 
 let sharedExtractor: Promise<Extractor> | undefined;
 
@@ -28,7 +28,7 @@ function unique<T>(items: T[]): T[] {
 }
 
 export function defaultSkillsDirs(): string[] {
-  const envDirs = (process.env.SKILL_REMINDER_SKILLS_DIRS ?? "")
+  const envDirs = (process.env.REMINDER_INJECTION_SKILLS_DIRS ?? "")
     .split(":")
     .map((entry) => entry.trim())
     .filter(Boolean);
