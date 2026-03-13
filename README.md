@@ -10,24 +10,13 @@ The plugin scans directories for `SKILL.md` files to cache their names and descr
 
 ## Configuration
 
-Add the plugin to your OpenCode config:
+Repo-local verification uses [`.envrc`](./.envrc), [`.config/opencode.json`](./.config/opencode.json), and a checked-in symlink under [`.config/plugins`](./.config/plugins) so OpenCode loads the real exporter without a machine-specific `file://` path.
 
-```json
-{
-  "plugin": ["file:///path/to/opencode-plugin-reminder-injection/src/index.ts"]
-}
-```
+## Environment Variables
 
-Optional environment variables:
-
-- `REMINDER_INJECTION_SKILLS_DIRS`: colon-separated list of skill roots to scan.
-- `REMINDER_INJECTION_MODEL`: embedding model name.
-- `REMINDER_INJECTION_TOP_K`: number of skills to inject. Default: `3`.
-
-Default skill root:
-
-- `~/.config/opencode/skills`
-
-Default model:
-
-- `mixedbread-ai/mxbai-embed-xsmall-v1`
+| Name | Required | Default | Controls |
+|------|----------|---------|---------|
+| `REMINDER_INJECTION_SKILLS_DIRS` | No | `~/.config/opencode/skills` | Colon-separated list of directories to scan for `SKILL.md` files |
+| `REMINDER_INJECTION_MODEL` | No | `mixedbread-ai/mxbai-embed-xsmall-v1` | Embedding model name |
+| `REMINDER_INJECTION_TOP_K` | No | `3` | Number of top skills to inject |
+| `REMINDER_INJECTION_TEST_PASSPHRASE` | No | — | Passphrase for integration test liveness proof |
