@@ -230,7 +230,7 @@ describe("plugin injection", () => {
           sessionID: "ses_test",
           role: "user",
           time: { created: Date.now() },
-          agent: "Minimal",
+          agent: "plugin-proof",
           model: { providerID: "test", modelID: "test" },
         },
         parts,
