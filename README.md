@@ -8,6 +8,13 @@ This OpenCode plugin injects skill reminders into user messages.
 
 The plugin scans directories for `SKILL.md` files to cache their names and descriptions. It then embeds the prompt with the cached skills and instructs the agent to use the most relevant ones.
 
+## Features
+
+- Passive `chat.message` hook — no tool invocation required
+- Semantic skill matching via cosine similarity on local embeddings (`mxbai-embed-xsmall-v1`)
+- Scans any number of skill directories, configurable via `REMINDER_INJECTION_SKILLS_DIRS`
+- Injects top-K skill summaries as a synthetic text part appended to the outgoing message
+
 ## Agent Surface
 
 This plugin uses a `chat.message` hook — it exposes no tool names to the agent. On every user message, it:
