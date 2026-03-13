@@ -8,6 +8,16 @@ This OpenCode plugin injects skill reminders into user messages.
 
 The plugin scans directories for `SKILL.md` files to cache their names and descriptions. It then embeds the prompt with the cached skills and instructs the agent to use the most relevant ones.
 
+## Agent Surface
+
+This plugin uses a `chat.message` hook — it exposes no tool names to the agent. On every user message, it:
+
+1. Scans `REMINDER_INJECTION_SKILLS_DIRS` for `SKILL.md` files (cached in memory)
+2. Embeds the user message and computes cosine similarity against skill descriptions
+3. Appends the top-K skill names and descriptions as a synthetic text part at the end of the outgoing message
+
+The agent sees the injected text as part of the user turn. No additional tool call is required.
+
 ## Configuration
 
 Repo-local verification uses [`.envrc`](./.envrc), [`.config/opencode.json`](./.config/opencode.json), and a checked-in symlink under [`.config/plugins`](./.config/plugins) so OpenCode loads the real exporter without a machine-specific `file://` path.
