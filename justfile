@@ -12,7 +12,7 @@ install: justfile-hygiene
     direnv exec "{{repo_root}}" bun install
 
 typecheck: justfile-hygiene
-    direnv exec "{{repo_root}}" bun run typecheck
+    direnv exec "{{repo_root}}" bunx tsc --noEmit
 
 test: justfile-hygiene
     #!/usr/bin/env bash
