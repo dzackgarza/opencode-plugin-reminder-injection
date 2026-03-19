@@ -7,7 +7,6 @@
     "check": "just --justfile justfile check"
   },
   "dependencies": {
-    "@huggingface/transformers": "latest",
     "@opencode-ai/plugin": "^1.2.20"
   },
   "devDependencies": {
