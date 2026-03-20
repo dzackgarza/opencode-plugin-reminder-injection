@@ -10,15 +10,24 @@ const TOP_K = Math.max(
 );
 const REMINDER_TAG = 'opencode-plugin-reminder-injection';
 const CLI_TIMEOUT_MS = 60_000;
+const CLI_SPEC =
+  process.env.SKILL_SUGGESTER_CLI_SPEC ??
+  'file:///home/dzack/opencode-plugins/clis/skill-suggester';
 
-async function runReminder(
-  toolName: string,
-  args: Record<string, unknown>,
-): Promise<any> {
-  const cliGitRepo = 'git+file:///home/dzack/opencode-plugins/reminder-manager';
+async function runSkillSuggester(
+  prompt: string,
+): Promise<Array<{ name: string; description: string }>> {
   const { stdout } = await execFileAsync(
-    'bunx',
-    ['--from', cliGitRepo, 'reminder', toolName, JSON.stringify(args)],
+    'uvx',
+    [
+      '--from',
+      CLI_SPEC,
+      'skill-suggester',
+      'top-skills',
+      prompt,
+      '--top-k',
+      String(TOP_K),
+    ],
     {
       timeout: CLI_TIMEOUT_MS,
     },
@@ -69,7 +78,7 @@ export function createSkillReminderPlugin(): Plugin {
       const prompt = textParts(output.parts).join('\n\n').trim();
       if (!prompt) return;
       try {
-        const skills = await runReminder('top_skills', { prompt, topK: TOP_K });
+        const skills = await runSkillSuggester(prompt);
         if (skills.length === 0) return;
         output.parts.push(
           buildSyntheticTextPart(
