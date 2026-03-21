@@ -12,7 +12,7 @@ const REMINDER_TAG = 'opencode-plugin-reminder-injection';
 const CLI_TIMEOUT_MS = 60_000;
 const CLI_SPEC =
   process.env.SKILL_SUGGESTER_CLI_SPEC ??
-  'file:///home/dzack/opencode-plugins/clis/skill-suggester';
+  'git+https://github.com/dzackgarza/reminder-manager.git';
 
 async function runSkillSuggester(
   prompt: string,
