@@ -18,9 +18,17 @@ typecheck: justfile-hygiene
 test: justfile-hygiene
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{repo_root}}"
-    rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/opencode"
-    exec direnv exec "{{repo_root}}" bun test
+    root_justfile="{{repo_root}}/../../justfile"
+
+    cleanup() {
+        just -f "$root_justfile" test-sandbox-down 2>/dev/null || true
+    }
+    trap cleanup EXIT
+
+    TEST_SANDBOX_CONFIG_JSON="{{repo_root}}/tests/integration/opencode.json" \
+        just -f "$root_justfile" test-sandbox-up
+    source "{{repo_root}}/../../.test-sandbox-env.sh"
+    direnv exec "{{repo_root}}" bun test tests/integration
 
 check: justfile-hygiene typecheck test
 
