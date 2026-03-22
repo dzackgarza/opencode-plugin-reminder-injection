@@ -120,48 +120,29 @@ function beginSession(prompt: string): string {
   return data.sessionID;
 }
 
-type RawSessionMessage = {
-  info?: {
-    role?: string;
-  };
-  parts?: Array<{
-    type?: string;
-    text?: string;
-  } | null>;
+type TranscriptData = {
+  turns: Array<{
+    userPrompt: string;
+  }>;
 };
 
-function flattenMessageText(message: RawSessionMessage): string {
-  return (message.parts ?? [])
-    .filter(
-      (part): part is { type?: string; text?: string } =>
-        part !== null && typeof part === 'object',
-    )
-    .filter((part) => part.type === 'text' && typeof part.text === 'string')
-    .map((part) => part.text?.trim() ?? '')
-    .filter(Boolean)
-    .join('\n');
+function readTranscript(sessionID: string): TranscriptData {
+  const { stdout } = runOcm(['transcript', sessionID, '--json']);
+  return JSON.parse(stdout) as TranscriptData;
 }
 
-async function waitForAssistantWitness(sessionID: string, timeoutMs: number): Promise<string> {
+async function waitForReminderPrompt(sessionID: string, timeoutMs: number): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const response = await fetch(`${BASE_URL}/session/${sessionID}/message`);
-    if (response.ok) {
-      const data = (await response.json()) as unknown;
-      if (Array.isArray(data)) {
-        const match = data
-          .filter((message): message is RawSessionMessage =>
-            typeof message === 'object' && message !== null,
-          )
-          .filter((message) => message.info?.role === 'user')
-          .map(flattenMessageText)
-          .find(
-            (text) =>
-              text.includes('Skill reminder: consider using these relevant skills before proceeding.') &&
-              text.includes(WITNESS_TOKEN),
-          );
-        if (match) return match;
-      }
+    const match = readTranscript(sessionID).turns
+      .map((turn) => turn.userPrompt?.trim() ?? '')
+      .find(
+        (text) =>
+          text.includes('Skill reminder: consider using these relevant skills before proceeding.') &&
+          text.includes(WITNESS_TOKEN),
+      );
+    if (match) {
+      return match;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
@@ -180,7 +161,7 @@ describe('reminder-injection plugin integration', () => {
 
     const sessionID = beginSession(prompt);
     try {
-      const text = await waitForAssistantWitness(sessionID, 30_000);
+      const text = await waitForReminderPrompt(sessionID, 30_000);
       expect(text).toContain('Skill reminder: consider using these relevant skills before proceeding.');
       expect(text).toContain(WITNESS_TOKEN);
       expect(text).toContain('Use them if they materially match the task.');
