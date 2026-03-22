@@ -121,49 +121,51 @@ function beginSession(prompt: string): string {
   return data.sessionID;
 }
 
-type TranscriptData = {
-  turns: Array<{
-    userPrompt: string;
-  }>;
+type RawSessionMessage = {
+  info?: {
+    role?: string;
+  };
+  parts?: Array<{
+    type?: string;
+    text?: string;
+  } | null>;
 };
 
-function readTranscript(sessionID: string): TranscriptData {
-  const result = spawnSync(
-    getOcmBinaryPath(),
-    ['transcript', sessionID, '--json'],
-    {
-      env: { ...process.env, OPENCODE_BASE_URL: BASE_URL },
-      cwd: PROJECT_DIR,
-      encoding: 'utf8',
-      timeout: SESSION_TIMEOUT_MS,
-      maxBuffer: MAX_BUFFER,
-    },
-  );
-  if (result.error) throw result.error;
-  const stdout = result.stdout?.trim() ?? '';
-  if (!stdout) {
-    const stderr = result.stderr?.trim() ?? '';
-    throw new Error(`ocm transcript ${sessionID} returned no JSON\nSTDERR:\n${stderr}`);
+async function readRawSessionMessages(sessionID: string): Promise<RawSessionMessage[]> {
+  const response = await fetch(`${BASE_URL}/session/${sessionID}/message`);
+  if (!response.ok) {
+    throw new Error(`Failed to load session messages for ${sessionID}: ${response.status}`);
   }
-  return JSON.parse(stdout) as TranscriptData;
+  const data = await response.json();
+  if (!Array.isArray(data)) {
+    throw new Error(`Session messages for ${sessionID} were not an array.`);
+  }
+  return data as RawSessionMessage[];
 }
 
-async function waitForReminderPrompt(sessionID: string, timeoutMs: number): Promise<string> {
+function flattenMessageText(message: RawSessionMessage): string {
+  return (message.parts ?? [])
+    .filter(
+      (part): part is { type?: string; text?: string } =>
+        part !== null && typeof part === 'object',
+    )
+    .filter((part) => part.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n');
+}
+
+async function waitForAssistantText(sessionID: string, timeoutMs: number): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const match = readTranscript(sessionID).turns
-      .map((turn) => turn.userPrompt?.trim() ?? '')
-      .find(
-        (text) =>
-          text.includes('Skill reminder: consider using these relevant skills before proceeding.') &&
-          text.includes(WITNESS_TOKEN),
-      );
-    if (match) {
-      return match;
-    }
+    const match = (await readRawSessionMessages(sessionID))
+      .filter((message) => message.info?.role === 'assistant')
+      .map(flattenMessageText)
+      .find((text) => text.length > 0);
+    if (match) return match;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error(`Timed out waiting for injected reminder text in session ${sessionID}.`);
+  throw new Error(`Timed out waiting for assistant text in session ${sessionID}.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -171,17 +173,16 @@ async function waitForReminderPrompt(sessionID: string, timeoutMs: number): Prom
 // ---------------------------------------------------------------------------
 
 describe('reminder-injection plugin integration', () => {
-  it('proves the outgoing user prompt is transformed to include the witness skill reminder', async () => {
+  it('proves the injected skill reminder is visible to the agent before model execution', async () => {
     const prompt =
       'I need to test reminder hook injection and skill suggestion verification. ' +
-      'Use whatever skills are relevant.';
+      'Reply with ONLY the exact skill name from any injected Skill reminder block that best matches this task. ' +
+      'If no Skill reminder block is present, reply with ONLY FAIL:PROOF_NOT_POSSIBLE.';
 
     const sessionID = beginSession(prompt);
     try {
-      const text = await waitForReminderPrompt(sessionID, REMINDER_TIMEOUT_MS);
-      expect(text).toContain('Skill reminder: consider using these relevant skills before proceeding.');
-      expect(text).toContain(WITNESS_TOKEN);
-      expect(text).toContain('Use them if they materially match the task.');
+      const text = await waitForAssistantText(sessionID, REMINDER_TIMEOUT_MS);
+      expect(text).toBe(WITNESS_TOKEN);
     } finally {
       try { runOcm(['delete', sessionID]); } catch { /* best-effort */ }
     }
