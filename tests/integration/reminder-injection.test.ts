@@ -11,8 +11,11 @@
  * the injected skill-reminder block and its witness token.
  */
 
-import { describe, expect, it } from 'bun:test';
+import { afterAll, describe, expect, it } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -37,6 +40,39 @@ const WITNESS_TOKEN: string = WITNESS;
 const MANAGER_PACKAGE = 'git+https://github.com/dzackgarza/opencode-manager.git';
 const MAX_BUFFER = 8 * 1024 * 1024;
 const SESSION_TIMEOUT_MS = 240_000;
+const OCM_TOOL_DIR = mkdtempSync(join(tmpdir(), 'ocm-tool-'));
+let ocmBinaryPath: string | undefined;
+
+afterAll(() => {
+  rmSync(OCM_TOOL_DIR, { recursive: true, force: true });
+});
+
+function getOcmBinaryPath(): string {
+  if (ocmBinaryPath) return ocmBinaryPath;
+  const binDir = process.platform === 'win32' ? join(OCM_TOOL_DIR, 'Scripts') : join(OCM_TOOL_DIR, 'bin');
+  const candidate = join(binDir, process.platform === 'win32' ? 'ocm.exe' : 'ocm');
+  if (!existsSync(candidate)) {
+    const install = spawnSync(
+      'uv',
+      ['tool', 'install', '--tool-dir', OCM_TOOL_DIR, '--from', MANAGER_PACKAGE, 'ocm'],
+      {
+        env: process.env,
+        cwd: PROJECT_DIR,
+        encoding: 'utf8',
+        timeout: SESSION_TIMEOUT_MS,
+        maxBuffer: MAX_BUFFER,
+      },
+    );
+    if (install.error) throw install.error;
+    if (install.status !== 0 || !existsSync(candidate)) {
+      throw new Error(
+        `Failed to install ocm\nSTDOUT:\n${install.stdout ?? ''}\nSTDERR:\n${install.stderr ?? ''}`,
+      );
+    }
+  }
+  ocmBinaryPath = candidate;
+  return candidate;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,8 +80,8 @@ const SESSION_TIMEOUT_MS = 240_000;
 
 function runOcm(args: string[]): { stdout: string; stderr: string } {
   const result = spawnSync(
-    'uvx',
-    ['--from', MANAGER_PACKAGE, 'ocm', ...args],
+    getOcmBinaryPath(),
+    args,
     {
       env: { ...process.env, OPENCODE_BASE_URL: BASE_URL },
       cwd: PROJECT_DIR,
@@ -103,19 +139,19 @@ async function waitForAssistantWitness(sessionID: string, timeoutMs: number): Pr
           .filter((message): message is RawSessionMessage =>
             typeof message === 'object' && message !== null,
           )
-          .filter((message) => message.info?.role === 'assistant')
+          .filter((message) => message.info?.role === 'user')
           .map(flattenMessageText)
           .find(
             (text) =>
-              text.includes(WITNESS_TOKEN) &&
-              !text.includes('NO_REMINDER'),
+              text.includes('Skill reminder: consider using these relevant skills before proceeding.') &&
+              text.includes(WITNESS_TOKEN),
           );
         if (match) return match;
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error(`Timed out waiting for assistant witness text in session ${sessionID}.`);
+  throw new Error(`Timed out waiting for injected reminder text in session ${sessionID}.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -123,19 +159,19 @@ async function waitForAssistantWitness(sessionID: string, timeoutMs: number): Pr
 // ---------------------------------------------------------------------------
 
 describe('reminder-injection plugin integration', () => {
-  it('proves skill reminder makes the witness skill visible to the model', async () => {
+  it('proves the outgoing user prompt is transformed to include the witness skill reminder', async () => {
     const prompt =
       'I need to test reminder hook injection and skill suggestion verification. ' +
-      'If you see any "Skill reminder:" section in your context, echo back verbatim ' +
-      'the skill names listed in it. Otherwise reply with NO_REMINDER.';
+      'Use whatever skills are relevant.';
 
     const sessionID = beginSession(prompt);
     try {
-      const text = await waitForAssistantWitness(sessionID, SESSION_TIMEOUT_MS);
+      const text = await waitForAssistantWitness(sessionID, 30_000);
+      expect(text).toContain('Skill reminder: consider using these relevant skills before proceeding.');
       expect(text).toContain(WITNESS_TOKEN);
-      expect(text).not.toContain('NO_REMINDER');
+      expect(text).toContain('Use them if they materially match the task.');
     } finally {
       try { runOcm(['delete', sessionID]); } catch { /* best-effort */ }
     }
-  }, SESSION_TIMEOUT_MS);
+  }, 30_000);
 });
