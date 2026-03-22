@@ -1,10 +1,11 @@
 /**
  * Integration tests for opencode-plugin-reminder-injection.
  *
- * The plugin hooks into chat.message and injects a skill-reminder block into
- * the model context via a synthetic text part. The witness token appears as
- * the name of a fixture skill that is indexed by the skill-suggester CLI when
- * SKILL_REMINDER_SKILLS_DIRS points to the fixture directory.
+ * The plugin hooks into experimental.chat.messages.transform and appends a
+ * skill-reminder block onto the outgoing user text before model execution.
+ * The witness token appears as the name of a fixture skill that is indexed by
+ * the skill-suggester CLI when SKILL_REMINDER_SKILLS_DIRS points to the
+ * fixture directory.
  *
  * Proof surface: the witness token from the injected reminder appears in the
  * model's final assistant text.
@@ -14,14 +15,16 @@ import { describe, expect, it } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 
 // ---------------------------------------------------------------------------
-// Environment — sourced from .testrc via plugin .envrc
+// Environment
 // ---------------------------------------------------------------------------
 
 const BASE_URL = process.env.OPENCODE_BASE_URL;
-if (!BASE_URL) throw new Error('OPENCODE_BASE_URL must be set (run via `just test`)');
+if (!BASE_URL) {
+  throw new Error('OPENCODE_BASE_URL must be set (run against a repo-local or CI OpenCode server)');
+}
 
-const AGENT_NAME = process.env.OPENCODE_TEST_AGENT_NAME;
-if (!AGENT_NAME) throw new Error('OPENCODE_TEST_AGENT_NAME must be set (sourced from .testrc via .envrc)');
+const AGENT_NAME = 'plugin-proof';
+const PROJECT_DIR = process.cwd();
 
 const WITNESS = process.env.REMINDER_INJECTION_TEST_WITNESS?.trim();
 if (!WITNESS) throw new Error('REMINDER_INJECTION_TEST_WITNESS must be set (sourced from plugin .envrc)');
@@ -44,6 +47,7 @@ function runOcm(args: string[]): { stdout: string; stderr: string } {
     ['--from', MANAGER_PACKAGE, 'ocm', ...args],
     {
       env: { ...process.env, OPENCODE_BASE_URL: BASE_URL },
+      cwd: PROJECT_DIR,
       encoding: 'utf8',
       timeout: SESSION_TIMEOUT_MS,
       maxBuffer: MAX_BUFFER,

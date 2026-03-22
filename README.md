@@ -10,24 +10,24 @@ The plugin scans directories for `SKILL.md` files to cache their names and descr
 
 ## Features
 
-- Passive `chat.message` hook — no tool invocation required
+- Passive `experimental.chat.messages.transform` hook — no tool invocation required
 - Semantic skill matching via cosine similarity on local embeddings (`mxbai-embed-xsmall-v1`)
 - Scans any number of skill directories, configurable via `REMINDER_INJECTION_SKILLS_DIRS`
-- Injects top-K skill summaries as a synthetic text part appended to the outgoing message
+- Injects top-K skill summaries into the outgoing user message before model execution
 
 ## Agent Surface
 
-This plugin uses a `chat.message` hook — it exposes no tool names to the agent. On every user message, it:
+This plugin uses `experimental.chat.messages.transform` — it exposes no tool names to the agent. On every user message, it:
 
 1. Scans `REMINDER_INJECTION_SKILLS_DIRS` for `SKILL.md` files (cached in memory)
 2. Embeds the user message and computes cosine similarity against skill descriptions
-3. Appends the top-K skill names and descriptions as a synthetic text part at the end of the outgoing message
+3. Appends the top-K skill names and descriptions onto the outgoing user text before the model sees it
 
 The agent sees the injected text as part of the user turn. No additional tool call is required.
 
 ## Configuration
 
-Repo-local verification uses [`.envrc`](./.envrc), [`.config/opencode.json`](./.config/opencode.json), and a checked-in symlink under [`.config/plugins`](./.config/plugins) so OpenCode loads the real exporter without a machine-specific `file://` path.
+Repo-root [`opencode.json`](./opencode.json) is the canonical proof config for this repo. CI starts `opencode serve` from the repo root and relies on standard global-plus-project config precedence.
 
 ## Environment Variables
 
@@ -37,3 +37,13 @@ Repo-local verification uses [`.envrc`](./.envrc), [`.config/opencode.json`](./.
 | `REMINDER_INJECTION_MODEL` | No | `mixedbread-ai/mxbai-embed-xsmall-v1` | Embedding model name |
 | `REMINDER_INJECTION_TOP_K` | No | `3` | Number of top skills to inject |
 | `REMINDER_INJECTION_TEST_PASSPHRASE` | No | — | Passphrase for integration test liveness proof |
+
+## Checks
+
+```bash
+direnv allow .
+just typecheck
+just test
+```
+
+CI is the canonical proof environment. For local debugging, start a repo-local OpenCode server from this checkout, set `OPENCODE_BASE_URL`, and then run the same `just` entrypoints.
