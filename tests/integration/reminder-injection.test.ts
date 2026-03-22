@@ -7,8 +7,8 @@
  * the skill-suggester CLI when SKILL_REMINDER_SKILLS_DIRS points to the
  * fixture directory.
  *
- * Proof surface: the witness token from the injected reminder appears in the
- * model's final assistant text.
+ * Proof surface: the transformed user prompt recorded in session state contains
+ * the injected skill-reminder block and its witness token.
  */
 
 import { describe, expect, it } from 'bun:test';
@@ -28,6 +28,7 @@ const PROJECT_DIR = process.cwd();
 
 const WITNESS = process.env.REMINDER_INJECTION_TEST_WITNESS?.trim();
 if (!WITNESS) throw new Error('REMINDER_INJECTION_TEST_WITNESS must be set (sourced from plugin .envrc)');
+const WITNESS_TOKEN: string = WITNESS;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -69,29 +70,52 @@ function beginSession(prompt: string): string {
   return data.sessionID;
 }
 
-function waitIdle(sessionID: string): void {
-  runOcm(['wait', sessionID, '--timeout-sec=180']);
+type RawSessionMessage = {
+  info?: {
+    role?: string;
+  };
+  parts?: Array<{
+    type?: string;
+    text?: string;
+  } | null>;
+};
+
+function flattenMessageText(message: RawSessionMessage): string {
+  return (message.parts ?? [])
+    .filter(
+      (part): part is { type?: string; text?: string } =>
+        part !== null && typeof part === 'object',
+    )
+    .filter((part) => part.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n');
 }
 
-function readFinalAssistantText(sessionID: string): string {
-  const { stdout } = runOcm(['transcript', sessionID, '--json']);
-  const data = JSON.parse(stdout) as {
-    turns: Array<{
-      assistantMessages: Array<{
-        steps: Array<{ type: string; contentText?: string } | null>;
-      }>;
-    }>;
-  };
-  const parts = data.turns.flatMap((turn) =>
-    turn.assistantMessages.flatMap((msg) =>
-      (msg.steps ?? [])
-        .filter((s): s is { type: string; contentText: string } =>
-          s !== null && s.type === 'text' && typeof s.contentText === 'string',
-        )
-        .map((s) => s.contentText),
-    ),
-  );
-  return parts.join('\n');
+async function waitForInjectedUserPrompt(sessionID: string, timeoutMs: number): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const response = await fetch(`${BASE_URL}/session/${sessionID}/message`);
+    if (response.ok) {
+      const data = (await response.json()) as unknown;
+      if (Array.isArray(data)) {
+        const match = data
+          .filter((message): message is RawSessionMessage =>
+            typeof message === 'object' && message !== null,
+          )
+          .filter((message) => message.info?.role === 'user')
+          .map(flattenMessageText)
+          .find(
+            (text) =>
+              text.includes('Skill reminder:') &&
+              text.includes(WITNESS_TOKEN),
+          );
+        if (match) return match;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`Timed out waiting for injected reminder text in session ${sessionID}.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -99,10 +123,10 @@ function readFinalAssistantText(sessionID: string): string {
 // ---------------------------------------------------------------------------
 
 describe('reminder-injection plugin integration', () => {
-  it('proves skill reminder is injected and witness token appears in assistant text', () => {
-    // Prompt about reminder hook testing — designed to match the RIHOOK-PROOF-20260318 fixture skill.
-    // The plugin injects a synthetic text part listing the matched skill name.
-    // Instruct the model to echo back any "Skill reminder" content it sees.
+  it('proves skill reminder is injected into the recorded user prompt', async () => {
+    // Prompt about reminder hook testing — designed to match the fixture skill
+    // indexed by the skill suggester. The proof reads the transformed user
+    // message back from session state instead of relying on the model to echo it.
     const prompt =
       'I need to test reminder hook injection and skill suggestion verification. ' +
       'If you see any "Skill reminder:" section in your context, echo back verbatim ' +
@@ -110,12 +134,10 @@ describe('reminder-injection plugin integration', () => {
 
     const sessionID = beginSession(prompt);
     try {
-      waitIdle(sessionID);
-      const text = readFinalAssistantText(sessionID);
-      // The witness token is the fixture skill name injected by the plugin.
-      // If the hook fired and skill-suggester found the fixture skill, the
-      // model will echo it. This proves the injection pipeline is wired end-to-end.
-      expect(text).toContain(WITNESS);
+      const text = await waitForInjectedUserPrompt(sessionID, SESSION_TIMEOUT_MS);
+      expect(text).toContain(prompt);
+      expect(text).toContain('Skill reminder:');
+      expect(text).toContain(WITNESS_TOKEN);
     } finally {
       try { runOcm(['delete', sessionID]); } catch { /* best-effort */ }
     }
