@@ -40,6 +40,7 @@ const WITNESS_TOKEN: string = WITNESS;
 const MANAGER_PACKAGE = 'git+https://github.com/dzackgarza/opencode-manager.git';
 const MAX_BUFFER = 8 * 1024 * 1024;
 const SESSION_TIMEOUT_MS = 240_000;
+const REMINDER_TIMEOUT_MS = 120_000;
 const OCM_TOOL_DIR = mkdtempSync(join(tmpdir(), 'ocm-tool-'));
 let ocmBinaryPath: string | undefined;
 
@@ -127,7 +128,23 @@ type TranscriptData = {
 };
 
 function readTranscript(sessionID: string): TranscriptData {
-  const { stdout } = runOcm(['transcript', sessionID, '--json']);
+  const result = spawnSync(
+    getOcmBinaryPath(),
+    ['transcript', sessionID, '--json'],
+    {
+      env: { ...process.env, OPENCODE_BASE_URL: BASE_URL },
+      cwd: PROJECT_DIR,
+      encoding: 'utf8',
+      timeout: SESSION_TIMEOUT_MS,
+      maxBuffer: MAX_BUFFER,
+    },
+  );
+  if (result.error) throw result.error;
+  const stdout = result.stdout?.trim() ?? '';
+  if (!stdout) {
+    const stderr = result.stderr?.trim() ?? '';
+    throw new Error(`ocm transcript ${sessionID} returned no JSON\nSTDERR:\n${stderr}`);
+  }
   return JSON.parse(stdout) as TranscriptData;
 }
 
@@ -161,12 +178,12 @@ describe('reminder-injection plugin integration', () => {
 
     const sessionID = beginSession(prompt);
     try {
-      const text = await waitForReminderPrompt(sessionID, 30_000);
+      const text = await waitForReminderPrompt(sessionID, REMINDER_TIMEOUT_MS);
       expect(text).toContain('Skill reminder: consider using these relevant skills before proceeding.');
       expect(text).toContain(WITNESS_TOKEN);
       expect(text).toContain('Use them if they materially match the task.');
     } finally {
       try { runOcm(['delete', sessionID]); } catch { /* best-effort */ }
     }
-  }, 30_000);
+  }, REMINDER_TIMEOUT_MS);
 });
