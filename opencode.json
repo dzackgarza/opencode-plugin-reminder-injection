@@ -5,6 +5,7 @@
   ],
   "agent": {
     "plugin-proof": {
+      "model": "github-copilot/gpt-4.1",
       "description": "Integration test agent: text-only reminder proof with no tool access",
       "mode": "primary",
       "prompt": "You are a strict integration-proof agent. Follow the prompt exactly and do not use tools. If asked for exact text, output only that text.",
