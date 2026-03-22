@@ -63,9 +63,59 @@ function runOcm(args: string[]): { stdout: string; stderr: string } {
   return { stdout, stderr };
 }
 
-function runOneShot(prompt: string): string {
-  const { stdout } = runOcm(['one-shot', prompt, '--agent', AGENT_NAME]);
-  return stdout.trim();
+function beginSession(prompt: string): string {
+  const { stdout } = runOcm(['begin-session', prompt, '--agent', AGENT_NAME, '--json']);
+  const data = JSON.parse(stdout) as { sessionID: string };
+  if (!data.sessionID) throw new Error(`begin-session returned no sessionID: ${stdout}`);
+  return data.sessionID;
+}
+
+type RawSessionMessage = {
+  info?: {
+    role?: string;
+  };
+  parts?: Array<{
+    type?: string;
+    text?: string;
+  } | null>;
+};
+
+function flattenMessageText(message: RawSessionMessage): string {
+  return (message.parts ?? [])
+    .filter(
+      (part): part is { type?: string; text?: string } =>
+        part !== null && typeof part === 'object',
+    )
+    .filter((part) => part.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n');
+}
+
+async function waitForAssistantWitness(sessionID: string, timeoutMs: number): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const response = await fetch(`${BASE_URL}/session/${sessionID}/message`);
+    if (response.ok) {
+      const data = (await response.json()) as unknown;
+      if (Array.isArray(data)) {
+        const match = data
+          .filter((message): message is RawSessionMessage =>
+            typeof message === 'object' && message !== null,
+          )
+          .filter((message) => message.info?.role === 'assistant')
+          .map(flattenMessageText)
+          .find(
+            (text) =>
+              text.includes(WITNESS_TOKEN) &&
+              !text.includes('NO_REMINDER'),
+          );
+        if (match) return match;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`Timed out waiting for assistant witness text in session ${sessionID}.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -73,14 +123,19 @@ function runOneShot(prompt: string): string {
 // ---------------------------------------------------------------------------
 
 describe('reminder-injection plugin integration', () => {
-  it('proves skill reminder injection makes the witness skill visible to the model', () => {
+  it('proves skill reminder makes the witness skill visible to the model', async () => {
     const prompt =
       'I need to test reminder hook injection and skill suggestion verification. ' +
       'If you see any "Skill reminder:" section in your context, echo back verbatim ' +
       'the skill names listed in it. Otherwise reply with NO_REMINDER.';
 
-    const text = runOneShot(prompt);
-    expect(text).toContain(WITNESS_TOKEN);
-    expect(text).not.toContain('NO_REMINDER');
+    const sessionID = beginSession(prompt);
+    try {
+      const text = await waitForAssistantWitness(sessionID, SESSION_TIMEOUT_MS);
+      expect(text).toContain(WITNESS_TOKEN);
+      expect(text).not.toContain('NO_REMINDER');
+    } finally {
+      try { runOcm(['delete', sessionID]); } catch { /* best-effort */ }
+    }
   }, SESSION_TIMEOUT_MS);
 });
